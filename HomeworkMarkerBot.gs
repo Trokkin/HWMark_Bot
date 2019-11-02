@@ -179,13 +179,13 @@ function cmdUnlock(spl, msg) {
 
 function cmdRegister(spl, msg) {
     // USAGE: /register <FIO>
-    // EXAMPLE: /register Лебедев Георгий Дмитриевич
+    // EXAMPLE: /register Р›РµР±РµРґРµРІ Р“РµРѕСЂРіРёР№ Р”РјРёС‚СЂРёРµРІРёС‡
 
     var chatId = msg.chat.id;
     var userId = msg.from.id;
     var username = msg.from.username;
     if (spl.length < 2) {
-        sendMessage(chatId, "Usage: " + spl[0] + " <FIO as in table>\nExample: " + spl[0] + " Лебедев Георгий Дмитриевич");
+        sendMessage(chatId, "Usage: " + spl[0] + " <FIO as in table>\nExample: " + spl[0] + " Р›РµР±РµРґРµРІ Р“РµРѕСЂРіРёР№ Р”РјРёС‚СЂРёРµРІРёС‡");
         return
     }
     if (chatId !== userId) {
