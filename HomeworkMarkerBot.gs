@@ -1,7 +1,6 @@
 var API_TOKEN = 'BOT_TOKEN_PLACEHOLDER';
 var SPREADSHEET = SpreadsheetApp.openById('10R5UhuwIYelODj7FCtI8oF9c7Nznv6GWWRVItPXtvu0');
 var ADMINS = [64259726];
-var ADMIN_ONLY = false;
 
 var COMMANDS = {
     "/start": cmdStart,
@@ -16,7 +15,8 @@ var COMMANDS = {
     "/distr": cmdDistr,
     "/ok": cmdOk,
     "/fail": cmdFail,
-    "/unquestion": cmdUnquestion
+    "/unquestion": cmdUnquestion,
+    "/queue": cmdQueue
 };
 
 var CACHE = [];
@@ -66,10 +66,11 @@ function doPost(e) {
         if (msg.hasOwnProperty("entities") && msg.entities[0].type === "bot_command") {
             var dbs = SPREADSHEET.getSheetByName("DB_STUDENTS");
             cacheDb(dbs);
+            cacheConfig(SPREADSHEET.getSheetByName("CONFIG"));
             log(msg);
             var spl = msg.text.split(" ");
             try {
-                if (ADMIN_ONLY && !isAdmin(msg.from.id)) {
+                if (isAdminOnly() && !isAdmin(msg.from.id)) {
                     sendMessage(msg.chat.id, "Bot is under maintenance. Contact admins for more info");
                     return;
                 }
@@ -311,6 +312,7 @@ function cmdStart(spl, msg) {
         "/register <FIO as in table> - register yourself in the table\n" +
         "/mark <sheet> <task(s)> - mark your solutions on tasks in table\n" +
         "/unmark <sheet> <task(s)> - unmark your solutions on tasks in table\n" +
+        "/queue <task> - make a queue entry. Please, write use this command only ONCE by queueing for your minimal task while you're in the table\n" +
         "/link - link to the table")
 }
 
@@ -609,6 +611,52 @@ function cmdUnquestion(spl, msg) {
     sendMessage(chatId, goodTasks.length !== 0 ? "Successfully unquestioned tasks: " + goodTasks.join(", ") + "!" : "No tasks were unquestioned!")
 }
 
+function cmdQueue(spl, msg) {
+    // USAGE: /queue <task>
+    // EXAMPLE: /queue 5
+
+    var chatId = msg.chat.id;
+    var userId = msg.from.id;
+    if (!isVerified(userId)) {
+        sendMessage(chatId, "You weren't verified or registered.");
+        return;
+    }
+    if (spl.length < 2) {
+        sendMessage(chatId, "Usage: " + spl[0] + " <task>\nExample: " + spl[0] + "5");
+        return
+    }
+    var d = new Date();
+    if (getConfigValue("QUEUE_UNLOCK_PERIOD") != 1) {
+        var day = getConfigValue("QUEUE_DAY");
+        var minTime = getConfigValue("QUEUE_MIN_TIME");
+        var maxTime = getConfigValue("QUEUE_MAX_TIME");
+        var curTime = d.getHours() * 60 + d.getMinutes();
+        if (d.getDay() != day || curTime < minTime || curTime >= maxTime) {
+            sendMessage(chatId, "Error: queuing is not allowed right now.");
+            return
+        }
+    }
+    var task = parseInt(spl[1]);
+    if (isNaN(task)) {
+        sendMessage(chatId, "Error: \"" + spl[1] + "\" is not a number");
+        return
+    }
+    if (task < getConfigValue("PROG_MIN_TASK") || task > getConfigValue("PROG_MAX_TASK")) {
+        sendMessage(chatId, "Error: \"" + spl[1] + "\" is not a task allowed to queue for");
+        return
+    }
+    var sheetName = "PROG/" + getGroupForTgId(SPREADSHEET.getSheetByName("DB_STUDENTS"), userId);
+    var sheet = SPREADSHEET.getSheetByName(sheetName);
+    if (sheet == null) {
+        sendMessage(chatId, "Error: sheet \"" + spl[1] + "\" not found");
+        return
+    }
+    //cacheTasksAndNames(sheet);
+    
+    sheet.appendRow([d, CACHE["DB_STUDENTS"]["idToFio"][userId], task]);
+    sendMessage(chatId, "Successfully queued for task " + task + "!")
+}
+
 function dbGetData(sheet, id, col) {
     return sheet.getRange(id, CACHE["DB_STUDENTS"]["cols"][col]).getValue();
 }
@@ -712,6 +760,19 @@ function cacheDb(sheet) {
             CACHE[sheetName]["idToFio"][range[j][1]] = range[j][0];
 }
 
+function cacheConfig(sheet) {
+    var sheetName = sheet.getSheetName();
+    CACHE[sheetName] = {
+        "optionToId": {},
+        "kv": {},
+    };
+    var range = sheet.getRange("A1:B").getValues();
+    for (var i = 0; i < range.length; i++) {
+        CACHE[sheetName]["optionToId"][range[i][0]] = i + 1;
+        CACHE[sheetName]["kv"][range[i][0]] = range[i][1];
+    }
+}
+
 function getGroupForTgId(sheet, id) {
     var row = dbGetRowIdFromTgId(sheet, id);
     return dbGetData(sheet, row, "GROUP")
@@ -805,11 +866,23 @@ function getQuestionedRow(sheet, task, map) {
     return null;
 }
 
+function getConfigValue(key) {
+    return CACHE["CONFIG"]["kv"][key];
+}
+
+function setConfigValue(key, value) {
+    SPREADSHEET.getSheetByName("CONFIG").getRange(CACHE["CONFIG"]["optionToId"][key], 2).setValue(value);
+}
+
 function isAdmin(username) {
     for (var i = 0; i < ADMINS.length; i++)
         if (ADMINS[i] === username)
             return true;
     return false
+}
+
+function isAdminOnly() {
+    return getConfigValue("ADMIN_ONLY") == 1;
 }
 
 function log(msg) {
