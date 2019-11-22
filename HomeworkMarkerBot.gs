@@ -654,6 +654,7 @@ function cmdQueue(spl, msg) {
     //cacheTasksAndNames(sheet);
     
     sheet.appendRow([d, CACHE["DB_STUDENTS"]["idToFio"][userId], task]);
+    sheet.getFilter().sort(3, true);
     sendMessage(chatId, "Successfully queued for task " + task + "!")
 }
 
