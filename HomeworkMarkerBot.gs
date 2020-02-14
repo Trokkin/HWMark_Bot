@@ -431,6 +431,7 @@ function cmdDistr(spl, msg) {
     var coffins = [];
     var overflow = [];
     var selected = [];
+    var fioToCount = {};
     uncompTasks.forEach(function (task) {
         if (data["taskToFios"][task].length === 0) {
             coffins.push(task);
@@ -438,33 +439,38 @@ function cmdDistr(spl, msg) {
         }
         var candidates = [];
         data["taskToFios"][task].forEach(function (fio) {
-            var sel = false;
-            for (var i = 0; i < selected.length; i++) {
-                if (selected[i] === fio) {
-                    sel = true;
-                    break;
-                }
-            }
-            if (!sel)
-                candidates.push(fio)
+            //var sel = false;
+            //for (var i = 0; i < selected.length; i++) {
+            //  if (selected[i] === fio) {
+            //      sel = true;
+            //      break;
+            //  }
+            //}
+            //if (!sel)
+            candidates.push(fio)
         });
         if (candidates.length === 0) {
             overflow.push(task);
             return;
         }
-        var scoreToArr = {};
-        var scores = [];
+        var fioToScore = {};
         candidates.forEach(function (fio) {
-            var score = Math.floor(CACHE[spl[1]]["fioToAc"][fio]);
-            if (scoreToArr[score] === undefined) {
-                scoreToArr[score] = [];
-                scores.push(score);
-            }
-            scoreToArr[score].push(fio);
+            fioToScore[fio] = Math.floor(CACHE[spl[1]]["fioToAc"][fio]);
         });
-        scores.sort();
-        var selection = scoreToArr[scores[0]][Math.floor(Math.random() * scoreToArr[scores[0]].length)];
+        candidates.shuffle();
+        candidates.sort(function (a, b) {
+            if (fioToCount[a] < fioToCount[b]) return -1;
+            if (fioToCount[a] > fioToCount[b]) return 1;
+            if (fioToScore[a] < fioToScore[b]) return -1;
+            if (fioToScore[a] > fioToScore[b]) return 1;
+            if (data["fiosToTasks"][a].length < data["fiosToTasks"][b].length) return -1;
+            if (data["fiosToTasks"][a].length > data["fiosToTasks"][b].length) return 1;
+            return 0;
+        });
+        var selection = candidates[0];
         selected.push(selection);
+        if(fioToCount[selection]) fioToCount[selection]++;
+        else fioToCount[selection] = 1;
         taskToSel[task] = selection;
         questionTask(sheet, selection, task);
     });
